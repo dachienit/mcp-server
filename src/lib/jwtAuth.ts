@@ -1,6 +1,6 @@
 import passport from 'passport';
 // @ts-ignore
-import { JWTStrategy } from '@sap/xssec';
+import { XssecPassportStrategy, XsuaaService } from '@sap/xssec';
 // @ts-ignore
 import xsenv from '@sap/xsenv';
 import { Request, Response, NextFunction } from 'express';
@@ -9,7 +9,7 @@ import { Request, Response, NextFunction } from 'express';
 export function initJwtStrategy() {
   try {
     const services = xsenv.getServices({ uaa: { tag: 'xsuaa' } });
-    passport.use('JWT', new JWTStrategy(services.uaa));
+    passport.use('JWT', new XssecPassportStrategy(new XsuaaService(services.uaa)));
     console.log('[JWT Auth] Passport JWT Strategy initialized successfully.');
   } catch (error: any) {
     console.warn('[JWT Auth] XSUAA service not found or initialization failed. Local mode fallback will be used.');

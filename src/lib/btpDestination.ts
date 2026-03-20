@@ -47,17 +47,23 @@ export async function createBtpAdtClient(userJwt: string, destinationName: strin
       throw new Error(`Destination '${destinationName}' not found.`);
     }
 
-    const customHttpClient = new BtpDestinationHttpClient(destination, userJwt);
-
-    // Initialize ADTClient passing our custom HTTP Client
+    // Initialize ADTClient with the URL from destination.
+    // We pass dummy username/password to satisfy the constructor's validation,
+    // as our customHttpClient will handle the actual authentication via JWT.
     const client = new ADTClient(
-      customHttpClient, 
-      '', // username
-      '', // password
-      process.env.SAP_CLIENT || '', 
+      destination.url,
+      'BTP_USER',
+      'BTP_PASSWORD',
+      process.env.SAP_CLIENT || '',
       process.env.SAP_LANGUAGE || 'EN'
     );
+
+    const customHttpClient = new BtpDestinationHttpClient(destination, userJwt);
     
+    // Replace the internal HttpClient with our BTP-aware implementation
+    // @ts-ignore - we are injecting our custom client
+    client.httpClient = customHttpClient;
+
     client.stateful = session_types.stateful;
 
     return client;

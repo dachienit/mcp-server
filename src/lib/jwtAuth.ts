@@ -41,6 +41,23 @@ export function jwtAuthMiddleware(req: Request, res: Response, next: NextFunctio
     return next();
   }
   
-  // Proceed with JWT validation
-  passport.authenticate('JWT', { session: false })(req, res, next);
+  // Proceed with JWT validation using a custom callback for better error reporting
+  passport.authenticate('JWT', { session: false }, (err: any, user: any, info: any) => {
+    if (err) {
+      console.error('[JWT Auth] Passport error:', err);
+      return res.status(500).json({ error: 'Authentication internal error', details: err.message });
+    }
+    if (!user) {
+      console.warn('[JWT Auth] Authentication failed:', info?.message || 'No user found');
+      return res.status(401).json({ 
+        error: 'Unauthorized', 
+        message: info?.message || 'Valid JWT token required',
+        hint: 'Ensure you are sending a Bearer token in the Authorization header or accessing via AppRouter.'
+      });
+    }
+    // Success - attach user and authInfo to request
+    (req as any).user = user;
+    (req as any).authInfo = info; // xssec puts token info here
+    next();
+  })(req, res, next);
 }

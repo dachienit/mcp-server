@@ -20,13 +20,20 @@ app.use(passport.initialize());
 // Store active SSE transports by sessionId
 const transports = new Map<string, SSEServerTransport>();
 
-// Token debugging endpoints
-app.get('/api/token', jwtAuthMiddleware, (req: Request, res: Response) => {
+// Token debugging endpoints - Public so user can see if any token reaches the backend
+app.get('/api/token', (req: Request, res: Response) => {
   const token = getUserJwt(req);
   if (token) {
-    res.json({ token: `Bearer ${token}` });
+    res.json({ 
+      authenticated: true,
+      token: `Bearer ${token}`,
+      message: "Token received successfully."
+    });
   } else {
-    res.status(401).json({ error: 'No JWT found' });
+    res.json({ 
+      authenticated: false,
+      message: "No JWT found in request. If you are accessing this URL directly in a browser, this is expected unless you are behind an AppRouter."
+    });
   }
 });
 

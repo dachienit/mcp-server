@@ -63,6 +63,7 @@ resources:
     type: org.cloudfoundry.managed-service
     parameters:
       service: destination
+      service-plan: lite
 
   - name: mcp-connectivity
     type: org.cloudfoundry.managed-service

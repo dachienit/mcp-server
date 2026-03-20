@@ -9,10 +9,11 @@ import { Request, Response, NextFunction } from 'express';
 export function initJwtStrategy() {
   try {
     const services = xsenv.getServices({ uaa: { tag: 'xsuaa' } });
-    passport.use(new JWTStrategy(services.uaa));
-    // Passport configuration for Express occurs in server.ts
-  } catch (error) {
-    console.warn('[JWT Auth] XSUAA service not found in VCAP_SERVICES. Local mode fallback will be used.');
+    passport.use('JWT', new JWTStrategy(services.uaa));
+    console.log('[JWT Auth] Passport JWT Strategy initialized successfully.');
+  } catch (error: any) {
+    console.warn('[JWT Auth] XSUAA service not found or initialization failed. Local mode fallback will be used.');
+    console.warn('[JWT Auth] Error details:', error.message);
   }
 }
 

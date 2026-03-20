@@ -5,6 +5,7 @@ import path from 'path';
 config({ path: path.resolve(process.cwd(), '.env') });
 
 import express, { Request, Response } from 'express';
+import passport from 'passport';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { createMcpServer } from './mcpServerFactory.js';
 import { initJwtStrategy, jwtAuthMiddleware, getUserJwt } from './lib/jwtAuth.js';
@@ -14,6 +15,7 @@ initJwtStrategy();
 
 const app = express();
 app.use(express.json());
+app.use(passport.initialize());
 
 // Store active SSE transports by sessionId
 const transports = new Map<string, SSEServerTransport>();

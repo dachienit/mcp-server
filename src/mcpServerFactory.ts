@@ -1,5 +1,5 @@
 import { ADTClient, session_types } from 'abap-adt-api';
-import { AbapAdtServer } from './index.js';
+import { AbapAdtServer } from './AbapAdtServer.js';
 import { createBtpAdtClient } from './lib/btpDestination.js';
 
 /**

@@ -11,6 +11,10 @@ modules:
       memory: 256M
       disk-quota: 512M
       buildpack: nodejs_buildpack
+    provides:
+      - name: srv-api
+        properties:
+          srv-url: ${default-url}
     requires:
       - name: mcp-xsuaa
       - name: mcp-destination
@@ -19,6 +23,26 @@ modules:
       # Default destination if none provided in header
       SAP_DESTINATION_NAME: T4X_011
 
+  - name: mcp-approuter
+    type: approuter.nodejs
+    path: app/router
+    parameters:
+      disk-quota: 256M
+      memory: 256M
+    requires:
+      - name: mcp-xsuaa
+      - name: srv-api
+        group: destinations
+        properties:
+          name: srv-api
+          url: ~{srv-url}
+          forwardAuthToken: true
+    provides:
+      - name: app-api
+        properties:
+          app-protocol: ${protocol}
+          app-uri: ${default-uri}
+
 resources:
   - name: mcp-xsuaa
     type: org.cloudfoundry.managed-service
@@ -26,12 +50,19 @@ resources:
       service: xsuaa
       service-plan: application
       path: ./xs-security.json
+      config:
+        xsappname: mcp-abap-server-${org}-${space}
+        tenant-mode: dedicated
+        oauth2-configuration:
+          redirect-uris:
+            - https://*~{app-api/app-uri}/**
+    requires:
+      - name: app-api
 
   - name: mcp-destination
     type: org.cloudfoundry.managed-service
     parameters:
       service: destination
-      service-plan: lite
 
   - name: mcp-connectivity
     type: org.cloudfoundry.managed-service

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MCP ABAP Server - AppRouter</title>
+    <style>
+        body { font-family: sans-serif; padding: 2rem; line-height: 1.6; max-width: 800px; margin: 0 auto; background: #f4f7f9; }
+        .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #0070f3; }
+        code { background: #eee; padding: 0.2rem 0.4rem; border-radius: 4px; }
+        .btn { display: inline-block; background: #0070f3; color: white; padding: 0.8rem 1.5rem; text-decoration: none; border-radius: 5px; margin-top: 1rem; }
+        .btn:hover { background: #0051af; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>MCP ABAP Server</h1>
+        <p>You are successfully authenticated via <strong>SAP BTP XSUAA</strong>.</p>
+        <p>This AppRouter forwards your identity (JWT) to the backend MCP server.</p>
+        <hr/>
+        <h3>Debug Tools</h3>
+        <ul>
+            <li><a href="/api/token">Check my JWT Token</a></li>
+            <li><a href="/mcp/sse">Test SSE Connection</a></li>
+        </ul>
+        <p>To use this server with an MCP Client, point your client to the URL of this AppRouter.</p>
+    </div>
+</body>
+</html>

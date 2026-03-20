@@ -43,15 +43,16 @@ export async function createBtpAdtClient(userJwt: string, destinationName: strin
       useCache: true
     });
 
-    if (!destination) {
-      throw new Error(`Destination '${destinationName}' not found.`);
+    const url = destination?.url;
+    if (!url) {
+      throw new Error(`Destination '${destinationName}' is missing a valid URL.`);
     }
 
     // Initialize ADTClient with the URL from destination.
     // We pass dummy username/password to satisfy the constructor's validation,
     // as our customHttpClient will handle the actual authentication via JWT.
     const client = new ADTClient(
-      destination.url,
+      url,
       'BTP_USER',
       'BTP_PASSWORD',
       process.env.SAP_CLIENT || '',

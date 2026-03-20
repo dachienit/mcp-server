@@ -1,0 +1,40 @@
+_schema-version: "3.1"
+ID: mcp-abap-server
+version: 1.0.0
+description: "Model Context Protocol Server for ABAP ADT API"
+
+modules:
+  - name: mcp-abap-server
+    type: nodejs
+    path: .
+    parameters:
+      memory: 256M
+      disk-quota: 512M
+      buildpack: nodejs_buildpack
+    requires:
+      - name: mcp-xsuaa
+      - name: mcp-destination
+      - name: mcp-connectivity
+    properties:
+      # Default destination if none provided in header
+      SAP_DESTINATION_NAME: T4X_011
+
+resources:
+  - name: mcp-xsuaa
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+
+  - name: mcp-destination
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite
+
+  - name: mcp-connectivity
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: connectivity
+      service-plan: lite

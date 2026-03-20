@@ -31,5 +31,5 @@ COPY --from=builder /app/node_modules ./node_modules
 # Expose port (if applicable, specify the port that your server listens on)
 EXPOSE 3000
 
-# Command to run the application
-CMD ["node", "./dist/index.js"]
+# Command to run the application HTTP Server
+CMD ["node", "./dist/server.js"]

@@ -61,9 +61,14 @@ export async function createBtpAdtClient(userJwt: string, destinationName: strin
 
     const customHttpClient = new BtpDestinationHttpClient(destination, userJwt);
     
-    // Replace the internal HttpClient with our BTP-aware implementation
-    // @ts-ignore - we are injecting our custom client
-    client.httpClient = customHttpClient;
+    // The httpClient property on ADTClient is a getter on the prototype.
+    // We must use Object.defineProperty to override it on the instance.
+    Object.defineProperty(client, 'httpClient', {
+      value: customHttpClient,
+      writable: true,
+      enumerable: true,
+      configurable: true
+    });
 
     client.stateful = session_types.stateful;
 

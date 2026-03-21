@@ -47,12 +47,9 @@ app.get('/mcp/sse', jwtAuthMiddleware, async (req: Request, res: Response) => {
     const userJwt = getUserJwt(req) || undefined;
     const destName = req.headers['x-sap-destination-name'] as string | undefined;
 
-    // Send headers immediately to prevent AppRouter 504 Timeout
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // Disable Nginx/AppRouter buffering
-    res.flushHeaders();
+    // Stage header to prevent AppRouter buffering. 
+    // Do NOT call res.flushHeaders() here, because SSEServerTransport will call res.writeHead()
+    res.setHeader('X-Accel-Buffering', 'no'); 
 
     // Create SSE transport. The endpoint string is where clients will POST their messages
     // The SDK appends ?sessionId=... to this endpoint
@@ -65,8 +62,15 @@ app.get('/mcp/sse', jwtAuthMiddleware, async (req: Request, res: Response) => {
     
     transports.set(transport.sessionId, transport);
 
+    // Keep-alive ping to prevent AppRouter 504 Timeout on idle connections
+    const pingInterval = setInterval(() => {
+      // SSE comment used as a heartbeat
+      res.write(': ping\n\n');
+    }, 15000);
+
     // Cleanup session when connection closes
     transport.onclose = () => {
+      clearInterval(pingInterval);
       transports.delete(transport.sessionId);
     };
   } catch (error: any) {

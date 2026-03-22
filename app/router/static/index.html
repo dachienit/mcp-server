@@ -3,26 +3,149 @@
 <head>
     <title>MCP ABAP Server - AppRouter</title>
     <style>
-        body { font-family: sans-serif; padding: 2rem; line-height: 1.6; max-width: 800px; margin: 0 auto; background: #f4f7f9; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 2rem; line-height: 1.6; max-width: 900px; margin: 0 auto; background: #f4f7f9; }
         .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h1 { color: #0070f3; }
+        h1 { color: #0070f3; margin-top: 0; }
         code { background: #eee; padding: 0.2rem 0.4rem; border-radius: 4px; }
-        .btn { display: inline-block; background: #0070f3; color: white; padding: 0.8rem 1.5rem; text-decoration: none; border-radius: 5px; margin-top: 1rem; }
+        pre { background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 5px; overflow-x: auto; max-height: 400px; }
+        .btn { display: inline-block; background: #0070f3; color: white; padding: 0.8rem 1.5rem; border: none; cursor: pointer; border-radius: 5px; margin-top: 1rem; font-size: 1rem; }
         .btn:hover { background: #0051af; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
+        .status { margin-top: 1rem; font-weight: bold; }
+        .success { color: green; }
+        .error { color: red; }
     </style>
 </head>
 <body>
     <div class="card">
         <h1>MCP ABAP Server</h1>
         <p>You are successfully authenticated via <strong>SAP BTP XSUAA</strong>.</p>
-        <p>This AppRouter forwards your identity (JWT) to the backend MCP server.</p>
+        <p>This page acts as a mini MCP Client. It uses your browser's secure session cookie to communicate with the Backend seamlessly.</p>
+        
         <hr/>
-        <h3>Debug Tools</h3>
-        <ul>
-            <li><a href="/api/token">Check my JWT Token</a></li>
-            <li><a href="/mcp/sse">Test SSE Connection</a></li>
-        </ul>
-        <p>To use this server with an MCP Client, point your client to the URL of this AppRouter.</p>
+        <h3>Interactive MCP Tester</h3>
+        <p>Click the button below to establish a Server-Sent Events (SSE) connection and fetch the list of ADT tools.</p>
+        
+        <button id="testBtn" class="btn">Connect & List Tools</button>
+        <div id="status" class="status"></div>
+        <pre id="log">Waiting for action...</pre>
     </div>
+
+    <script>
+        const btn = document.getElementById('testBtn');
+        const statusEl = document.getElementById('status');
+        const logEl = document.getElementById('log');
+
+        let messageId = 1;
+
+        function logInfo(msg) {
+            logEl.textContent += `\n[INFO] ${msg}`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function logError(msg) {
+            logEl.textContent += `\n[ERROR] ${msg}`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function setStatus(text, type) {
+            statusEl.textContent = text;
+            statusEl.className = `status ${type}`;
+        }
+
+        btn.addEventListener('click', () => {
+            btn.disabled = true;
+            logEl.textContent = "Connecting to /mcp/sse...";
+            setStatus("Connecting...", "");
+
+            // 1. Establish SSE Connection
+            const eventSource = new EventSource('/mcp/sse');
+
+            eventSource.onopen = () => {
+                logInfo("SSE Connection opened. Waiting for endpoint...");
+                setStatus("Connected (waiting for endpoint)", "success");
+            };
+
+            eventSource.onerror = (err) => {
+                logError("SSE Connection encountered an error or was closed.");
+                setStatus("Disconnected", "error");
+                btn.disabled = false;
+                eventSource.close();
+            };
+
+            // 2. Listen for the 'endpoint' event from MCP SDK
+            eventSource.addEventListener('endpoint', async (event) => {
+                const endpointUrl = event.data; // e.g. /mcp/messages?sessionId=xxx
+                logInfo(`Received POST endpoint: ${endpointUrl}`);
+                setStatus("Session Established", "success");
+
+                // 3. Send Initialize Request
+                try {
+                    logInfo(`Sending 'initialize' request...`);
+                    const initRes = await fetch(endpointUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            jsonrpc: "2.0",
+                            id: messageId++,
+                            method: "initialize",
+                            params: {
+                                protocolVersion: "2024-11-05",
+                                capabilities: {},
+                                clientInfo: { name: "WebTester", version: "1.0.0" }
+                            }
+                        })
+                    });
+
+                    if (!initRes.ok) throw new Error(`Init failed: ${initRes.status} ${initRes.statusText}`);
+                    logInfo("Init request sent successfully.");
+                    
+                    // We also need to send 'notifications/initialized' as per standard protocol
+                    await fetch(endpointUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            jsonrpc: "2.0",
+                            method: "notifications/initialized"
+                        })
+                    });
+
+                    // 4. Send tools/list Request
+                    logInfo(`Sending 'tools/list' request...`);
+                    const toolsRes = await fetch(endpointUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            jsonrpc: "2.0",
+                            id: messageId++,
+                            method: "tools/list",
+                            params: {}
+                        })
+                    });
+
+                    if (!toolsRes.ok) throw new Error(`Tools list failed: ${toolsRes.status} ${toolsRes.statusText}`);
+                    logInfo("tools/list request sent successfully. Waiting for SSE response...");
+
+                } catch (err) {
+                    logError(err.message);
+                    setStatus("Error during POST", "error");
+                    btn.disabled = false;
+                }
+            });
+
+            // Listen for normal JSON-RPC messages (responses to our POSTs)
+            eventSource.addEventListener('message', (event) => {
+                const data = JSON.parse(event.data);
+                logInfo(`\n<<< Received JSON-RPC Message:`);
+                logEl.textContent += `\n${JSON.stringify(data, null, 2)}`;
+                logEl.scrollTop = logEl.scrollHeight;
+
+                if (data.id === 2 && data.result && data.result.tools) {
+                    setStatus(`Success! Detected ${data.result.tools.length} ADT Tools.`, "success");
+                    btn.disabled = false;
+                }
+            });
+        });
+    </script>
 </body>
 </html>

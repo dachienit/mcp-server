@@ -18,7 +18,6 @@ const app = express();
 
 // Enable CORS for all routes (necessary for AppRouter and MCP clients)
 app.use(cors());
-app.use(express.json());
 app.use(passport.initialize());
 
 // Store active SSE transports by sessionId

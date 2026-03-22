@@ -27,6 +27,14 @@
         <p>Click the button below to establish a Server-Sent Events (SSE) connection and fetch the list of ADT tools.</p>
         
         <button id="testBtn" class="btn">Connect & List Tools</button>
+        
+        <div style="margin-top: 1.5rem; padding: 1.5rem; background: #eef; border-radius: 5px; border-left: 4px solid #0070f3;">
+            <h4 style="margin-top: 0;">2. Test Tool Execution (searchObject)</h4>
+            <p style="font-size: 0.9em; margin-bottom: 0.5rem;">After connecting above, enter a query to search ABAP objects:</p>
+            <input type="text" id="queryInput" placeholder="e.g. ZCL*" value="ZCL*" style="padding: 0.6rem; width: 200px; border: 1px solid #ccc; border-radius: 4px;"/>
+            <button id="callToolBtn" class="btn" disabled style="margin-top: 0; background: #28a745;">Call searchObject</button>
+        </div>
+
         <div id="status" class="status"></div>
         <pre id="log">Waiting for action...</pre>
     </div>
@@ -37,6 +45,7 @@
         const logEl = document.getElementById('log');
 
         let messageId = 1;
+        let currentEndpointUrl = null;
 
         function logInfo(msg) {
             logEl.textContent += `\n[INFO] ${msg}`;
@@ -75,14 +84,15 @@
 
             // 2. Listen for the 'endpoint' event from MCP SDK
             eventSource.addEventListener('endpoint', async (event) => {
-                const endpointUrl = event.data; // e.g. /mcp/messages?sessionId=xxx
-                logInfo(`Received POST endpoint: ${endpointUrl}`);
+                currentEndpointUrl = event.data; // e.g. /mcp/messages?sessionId=xxx
+                document.getElementById('callToolBtn').disabled = false;
+                logInfo(`Received POST endpoint: ${currentEndpointUrl}`);
                 setStatus("Session Established", "success");
 
                 // 3. Send Initialize Request
                 try {
                     logInfo(`Sending 'initialize' request...`);
-                    const initRes = await fetch(endpointUrl, {
+                    const initRes = await fetch(currentEndpointUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -101,7 +111,7 @@
                     logInfo("Init request sent successfully.");
                     
                     // We also need to send 'notifications/initialized' as per standard protocol
-                    await fetch(endpointUrl, {
+                    await fetch(currentEndpointUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -112,7 +122,7 @@
 
                     // 4. Send tools/list Request
                     logInfo(`Sending 'tools/list' request...`);
-                    const toolsRes = await fetch(endpointUrl, {
+                    const toolsRes = await fetch(currentEndpointUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -145,6 +155,37 @@
                     btn.disabled = false;
                 }
             });
+        });
+
+        // Event Listener for the callTool button
+        document.getElementById('callToolBtn').addEventListener('click', async () => {
+            if (!currentEndpointUrl) return;
+            const query = document.getElementById('queryInput').value || "ZCL*";
+            logInfo(`\n>>> Sending 'tools/call' request for searchObject with query='${query}'...`);
+            
+            try {
+                const callRes = await fetch(currentEndpointUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        jsonrpc: "2.0",
+                        id: messageId++,
+                        method: "tools/call",
+                        params: {
+                            name: "searchObject",
+                            arguments: {
+                                query: query,
+                                maxResults: 10
+                            }
+                        }
+                    })
+                });
+
+                if (!callRes.ok) throw new Error(`Call failed: ${callRes.status} ${callRes.statusText}`);
+                logInfo("tools/call request sent successfully. Waiting for SSE response...");
+            } catch (err) {
+                logError(err.message);
+            }
         });
     </script>
 </body>

@@ -9,7 +9,10 @@
     "abap-adt-api": "^6.2.0",
     "cors": "^2.8.6",
     "dotenv": "^16.4.7",
+    "eventsource": "^4.1.0",
     "express": "^4.21.0",
+    "https-proxy-agent": "^8.0.0",
+    "node-fetch": "^3.3.2",
     "passport": "^0.7.0",
     "typescript": "^5.7.3"
   },

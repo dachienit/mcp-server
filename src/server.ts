@@ -68,9 +68,13 @@ app.get('/mcp/sse', jwtAuthMiddleware, async (req: Request, res: Response) => {
     }, 15000);
 
     // Cleanup session when connection closes
-    transport.onclose = () => {
+    transport.onclose = async () => {
       clearInterval(pingInterval);
       transports.delete(transport.sessionId);
+      
+      // Politely tell the ABAP Server to destroy the session to free up SM04
+      await server.closeSession();
+      console.log(`[SSE CLOSED] Session ${transport.sessionId} cleared from memory and logged off.`);
     };
   } catch (error: any) {
     console.error("[SSE ERROR]", error);

@@ -126,6 +126,16 @@ export class AbapAdtServer extends Server {
     this.setupToolHandlers();
   }
 
+  public async closeSession() {
+    try {
+      if (this.adtClient) {
+        await this.adtClient.logout();
+      }
+    } catch (error: any) {
+      console.error(`[MCP Logout Error] Failed to end ABAP ADT session: ${error.message}`);
+    }
+  }
+
   private serializeResult(result: any) {
     try {
       return {

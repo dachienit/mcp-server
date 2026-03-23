@@ -5,3 +5,4 @@ package-lock.json
 *.code-workspace
 
 /cap-mcp-ai
+/btp-sap-odata-to-mcp-server

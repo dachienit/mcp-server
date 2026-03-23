@@ -1,4 +1,18 @@
 {
   "xsappname": "mcp-abap-server",
-  "tenant-mode": "dedicated"
+  "tenant-mode": "dedicated",
+  "description": "MCP ABAP ADT API Server – OAuth + Streamable HTTP",
+  "scopes": [],
+  "role-templates": [],
+  "oauth2-configuration": {
+    "redirect-uris": [
+      "https://*.cfapps.*.hana.ondemand.com/**",
+      "https://claude.ai/api/mcp/auth_callback",
+      "http://localhost:*/**",
+      "http://127.0.0.1:*/**",
+      "http://localhost:6274/**"
+    ],
+    "token-validity": 3600,
+    "refresh-token-validity": 86400
+  }
 }

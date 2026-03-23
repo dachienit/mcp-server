@@ -7,15 +7,31 @@ const http = require('http');
 const https = require('https');
 const { URL } = require('url');
 
+const { execSync } = require('child_process');
+
 const BTP_URL = process.env.BTP_URL || 'https://robert-bosch-gmbh-rb-btphub-taf-d-bt222d00-mcp-approuter.cfapps.eu10-004.hana.ondemand.com';
-// Support JWT from: 1) env var, 2) command line argument
-const JWT_TOKEN = process.env.JWT_TOKEN || process.argv[2];
 const DESTINATION = process.env.SAP_DESTINATION_NAME || 'T4X_011';
 
-if (!JWT_TOKEN) {
-  process.stderr.write('[Bridge] ERROR: Missing JWT_TOKEN environment variable.\n');
-  process.exit(1);
+// Auto-fetch JWT Token: 1) env var, 2) CLI argument, 3) auto from `cf oauth-token`
+function getJwtToken() {
+  if (process.env.JWT_TOKEN) return process.env.JWT_TOKEN;
+  if (process.argv[2]) return process.argv[2];
+
+  // Auto-fetch from CF CLI (works on SAP BAS where user is already logged in)
+  try {
+    process.stderr.write('[Bridge] No JWT_TOKEN found. Trying `cf oauth-token`...\n');
+    const rawToken = execSync('cf oauth-token', { encoding: 'utf-8', timeout: 10000 }).trim();
+    // cf oauth-token returns "bearer eyJ..." — extract just the token part
+    const token = rawToken.replace(/^bearer\s+/i, '');
+    process.stderr.write('[Bridge] Successfully obtained token from CF CLI.\n');
+    return token;
+  } catch (err) {
+    process.stderr.write(`[Bridge] ERROR: Could not get token. Please login with 'cf login' first or set JWT_TOKEN.\n`);
+    process.exit(1);
+  }
 }
+
+const JWT_TOKEN = getJwtToken();
 
 const commonHeaders = {
   'Authorization': `Bearer ${JWT_TOKEN}`,

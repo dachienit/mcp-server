@@ -97,27 +97,18 @@ export async function createBtpAdtClient(userJwt: string, destinationName: strin
       throw new Error(`Destination '${destinationName}' is missing a valid URL.`);
     }
 
-    // Initialize ADTClient with the URL from destination.
-    // We pass dummy username/password to satisfy the constructor's validation,
-    // as our customHttpClient will handle the actual authentication via JWT.
+    const customHttpClient = new BtpDestinationHttpClient(destination, userJwt);
+
+    // abap-adt-api natively supports injecting a custom HttpClient by passing it 
+    // as the very first parameter to the constructor (instead of a URL string).
+    // This perfectly wires up all internal API calls to use our BtpDestinationHttpClient.
     const client = new ADTClient(
-      url,
+      customHttpClient,
       'BTP_USER',
       'BTP_PASSWORD',
       process.env.SAP_CLIENT || '',
       process.env.SAP_LANGUAGE || 'EN'
     );
-
-    const customHttpClient = new BtpDestinationHttpClient(destination, userJwt);
-    
-    // The httpClient property on ADTClient is a getter on the prototype.
-    // We must use Object.defineProperty to override it on the instance.
-    Object.defineProperty(client, 'httpClient', {
-      value: customHttpClient,
-      writable: true,
-      enumerable: true,
-      configurable: true
-    });
 
     client.stateful = session_types.stateful;
 

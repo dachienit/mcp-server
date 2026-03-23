@@ -12,6 +12,7 @@ if (!JWT_TOKEN) {
   process.exit(1);
 }
 
+
 // Setup Proxy Agent if behind Corporate Firewall
 const agent = PROXY_URL ? new HttpsProxyAgent(PROXY_URL) : undefined;
 const headers = {
@@ -41,7 +42,7 @@ eventSource.on('endpoint', (e) => {
 
 eventSource.on('message', (e) => {
   // Pass BTP Server's response back to standard output (Claude/Cursor/Inspector)
-  sendToClient(e.data); 
+  sendToClient(e.data);
 });
 
 eventSource.onerror = (err) => {
@@ -53,20 +54,20 @@ let buffer = Buffer.alloc(0);
 
 process.stdin.on('data', async (chunk) => {
   buffer = Buffer.concat([buffer, chunk]);
-  
+
   // Parse Content-Length headers as required by MCP Protocol
   while (true) {
     const match = buffer.toString('utf-8').match(/^Content-Length: (\d+)\r\n\r\n/);
     if (!match) break;
-    
+
     const headerLen = match[0].length;
     const bodyLen = parseInt(match[1], 10);
-    
+
     if (buffer.length < headerLen + bodyLen) break; // Incomplete message
-    
+
     const bodyStr = buffer.subarray(headerLen, headerLen + bodyLen).toString('utf-8');
     buffer = buffer.subarray(headerLen + bodyLen); // Shift buffer
-    
+
     if (messageEndpoint) {
       try {
         // Forward local JSON-RPC request to BTP Server

@@ -1,5 +1,7 @@
 // @ts-ignore
 import xsenv from '@sap/xsenv';
+// @ts-ignore
+import { createSecurityContext, XsuaaService } from '@sap/xssec';
 import { Request, Response, NextFunction } from 'express';
 
 export interface AuthRequest extends Request {
@@ -127,6 +129,13 @@ export class AuthService {
     return `${baseUrl}/oauth/callback`;
   }
 
+  /** Validate JWT token against XSUAA and extract user information */
+  async validateToken(token: string): Promise<any> {
+    if (!this.xsuaaCredentials) throw new Error('XSUAA service not configured');
+    const service = new XsuaaService(this.xsuaaCredentials);
+    return await createSecurityContext(service, { jwt: token });
+  }
+
   /**
    * Express middleware: Validates JWT from Authorization header.
    * Skips validation in local dev mode (no VCAP_SERVICES).
@@ -153,8 +162,25 @@ export class AuthService {
 
       // Extract JWT and attach to request for downstream use
       const token = authHeader.substring(7);
-      req.jwtToken = token;
-      next();
+      
+      try {
+        const securityContext = await this.validateToken(token);
+        req.authInfo = securityContext;
+        req.jwtToken = token;
+        next();
+      } catch (error: any) {
+        console.error('[AuthService] Token validation failed:', error.message);
+        const baseUrl = getBaseUrl(req);
+        return res.status(401).json({
+          error: 'Invalid Token',
+          message: 'The provided JWT token is invalid or expired.',
+          details: error.message,
+          oauth: {
+            authorize: `${baseUrl}/oauth/authorize`,
+            discovery: `${baseUrl}/.well-known/oauth-authorization-server`
+          }
+        });
+      }
     };
   }
 }

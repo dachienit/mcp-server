@@ -1,6 +1,6 @@
-import { HttpsProxyAgent } from 'https-proxy-agent';
-import fetch from 'node-fetch';
-import EventSource from 'eventsource';
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const EventSource = require('eventsource');
+// Node 22 has global 'fetch' built-in, so we don't need node-fetch import.
 
 const BTP_URL = process.env.BTP_URL || 'https://robert-bosch-gmbh-rb-btphub-taf-d-bt222d00-mcp-approuter.cfapps.eu10-004.hana.ondemand.com';
 const JWT_TOKEN = process.env.JWT_TOKEN;

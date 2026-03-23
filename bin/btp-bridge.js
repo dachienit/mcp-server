@@ -8,7 +8,8 @@ const https = require('https');
 const { URL } = require('url');
 
 const BTP_URL = process.env.BTP_URL || 'https://robert-bosch-gmbh-rb-btphub-taf-d-bt222d00-mcp-approuter.cfapps.eu10-004.hana.ondemand.com';
-const JWT_TOKEN = process.env.JWT_TOKEN;
+// Support JWT from: 1) env var, 2) command line argument
+const JWT_TOKEN = process.env.JWT_TOKEN || process.argv[2];
 const DESTINATION = process.env.SAP_DESTINATION_NAME || 'T4X_011';
 
 if (!JWT_TOKEN) {

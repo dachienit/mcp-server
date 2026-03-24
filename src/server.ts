@@ -244,16 +244,9 @@ app.get('/oauth/authorize', (req, res) => {
 
   const state = req.query.state as string || randomUUID();
   const baseUrl = getBaseUrl(req);
-  const mcpRedirectUri = req.query.redirect_uri as string;
+  const mcpRedirectUri = req.query.redirect_uri as string || ''; // Empty string means manual HTML flow
 
-  if (!mcpRedirectUri) {
-    return res.status(400).json({
-      error: 'Missing redirect_uri parameter',
-      message: 'The MCP Client must provide a redirect_uri.'
-    });
-  }
-
-  // Store the MCP Client's redirect URI
+  // Store the MCP Client's redirect URI (or empty for manual flow)
   oauthStates.set(state, { mcpRedirectUri, state, timestamp: Date.now() });
 
   // Cleanup states older than 10 minutes
@@ -294,9 +287,24 @@ app.get('/oauth/callback', async (req, res) => {
         <h1>❌ Error</h1><p>OAuth state not found or expired. Please try again.</p>
       </body></html>`);
     }
-
-    // Redirect the authorization code back to the MCP Client
+    
     oauthStates.delete(state);
+
+    if (!mcpInfo.mcpRedirectUri) {
+      // MANUAL OOB FLOW: No redirect URI was provided, so we exchange the token here and show it on-screen
+      const baseUrl = getBaseUrl(req);
+      const tokenData = await authService.exchangeCodeForToken(code, authService.getRedirectUri(baseUrl));
+      
+      return res.send(`<html>
+        <body style="font-family:sans-serif;text-align:center;padding:2rem;background:#f4f4f5;color:#333;">
+          <h1 style="color:#10b981;">✅ Authentication Successful</h1>
+          <p style="font-size:1.1rem;margin-bottom:1rem;">Please copy the Access Token below and configure your MCP Client:</p>
+          <textarea readonly style="width:100%;max-width:800px;height:250px;padding:15px;border-radius:8px;border:1px solid #ccc;font-family:monospace;font-size:14px;">${tokenData.access_token}</textarea>
+        </body>
+      </html>`);
+    }
+
+    // AUTOMATED FLOW: Redirect the authorization code back to the MCP Client
     const callbackUrl = new URL(mcpInfo.mcpRedirectUri);
     const params = new URLSearchParams({ code, state });
     console.log(`[OAuth] Redirecting code back to MCP Client: ${callbackUrl.toString()}`);

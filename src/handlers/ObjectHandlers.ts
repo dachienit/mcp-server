@@ -207,8 +207,9 @@ export class ObjectHandlers extends BaseHandler {
         const startTime = performance.now();
         try {
             const pkgName = args.packageName.toUpperCase();
+            const maxResults = args.maxResults || 100;
             
-            // 1. Get the package itself to find its URI
+            // 1. Verify the package exists first via searchObject
             const pkgs = await this.adtclient.searchObject(pkgName, 'DEVC/K', 1);
             if (!pkgs || pkgs.length === 0 || pkgs[0]['adtcore:name'] !== pkgName) {
                 this.trackRequest(startTime, true);
@@ -220,26 +221,27 @@ export class ObjectHandlers extends BaseHandler {
             }
 
             const pkg = pkgs[0];
-            const pkgUri = pkg['adtcore:uri'];
-            const pkgDescription = pkg['adtcore:description'] || '';
-            const pkgPackageName = pkg['adtcore:packageName'] || '';
-            console.log(`[ObjectHandlers] Found exact package ${pkgName} at URI: ${pkgUri}`);
+            console.log(`[ObjectHandlers] Found exact package ${pkgName}, fetching contents...`);
 
-            // 2. Search for all objects IN this package using the URI and raw HTTP request
-            // Need to cast to any to access the underlying HTTP client request method 'h'
-            const response = await (this.adtclient as any).h.request(`${pkgUri}/contents?withTargetSpec=true&withInactive=true`, {
-                headers: { 'Accept': 'application/xml' }
+            // 2. Use the identical approach as the CAP project:
+            //    quickSearch with query=* and packageName=PACKAGE_NAME
+            //    This is the proven ADT endpoint for listing all objects in a package.
+            const ADT_BASE = '/sap/bc/adt';
+            const contentsPath = `${ADT_BASE}/repository/informationsystem/search?operation=quickSearch&query=*&packageName=${encodeURIComponent(pkgName)}&maxResults=${maxResults}`;
+            
+            const response = await (this.adtclient as any).h.request(contentsPath, {
+                headers: { 'Accept': 'application/vnd.sap.adt.repository.informationsystem.search.result.v1+xml, application/xml' }
             });
 
-            const contentsXml = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-            const objects = [];
+            const xml = typeof response.body === 'string' ? response.body : JSON.stringify(response.body);
+            const objects: any[] = [];
             
             // Push the package itself first
             objects.push({ 
                 name: pkg['adtcore:name'], 
                 type: 'DEVC/K', 
-                description: pkgDescription, 
-                packageName: pkgPackageName 
+                description: pkg['adtcore:description'] || '', 
+                packageName: pkg['adtcore:packageName'] || '' 
             });
 
             // Parse the XML to extract all child objects (mirroring the CAP project regex)
@@ -251,7 +253,7 @@ export class ObjectHandlers extends BaseHandler {
             const pkgPattern = /adtcore:packageName="([^"]*)"/;
 
             let match;
-            while ((match = refPattern.exec(contentsXml)) !== null) {
+            while ((match = refPattern.exec(xml)) !== null) {
                 const tag = match[0];
                 const cName = (namePattern.exec(tag) || [])[1];
                 const cType = (typePattern.exec(tag) || [])[1];
@@ -260,7 +262,7 @@ export class ObjectHandlers extends BaseHandler {
                         name: cName,
                         type: cType,
                         description: (descPattern.exec(tag) || [])[1] || '',
-                        packageName: (pkgPattern.exec(tag) || [])[1] || pkg['adtcore:name'],
+                        packageName: (pkgPattern.exec(tag) || [])[1] || pkgName,
                         url: (uriPattern.exec(tag) || [])[1] || ''
                     });
                 }
@@ -274,7 +276,7 @@ export class ObjectHandlers extends BaseHandler {
                         text: JSON.stringify({
                             status: 'success',
                             results: objects,
-                            message: `Package ${pkgName} and its contents retrieved successfully`
+                            message: `Package ${pkgName} contains ${objects.length - 1} objects`
                         }, null, 2)
                     }
                 ]
@@ -289,6 +291,7 @@ export class ObjectHandlers extends BaseHandler {
             );
         }
     }
+
 
     async handleObjectTypes(args: any): Promise<any> {
         const startTime = performance.now();

@@ -25,8 +25,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'mcp-session-id', 'MCP-Protocol-Version', 'Authorization', 'x-sap-destination-name']
 }));
 
-// JSON body parser for POST endpoints
+// JSON config
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Helper to extract JWT from Authorization header
 function getUserJwt(req: Request): string | null {

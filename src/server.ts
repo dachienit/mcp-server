@@ -7,18 +7,13 @@ config({ path: path.resolve(process.cwd(), '.env') });
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { randomUUID } from 'crypto';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { createMcpServer } from './mcpServerFactory.js';
-import { initJwtStrategy, jwtAuthMiddleware, getUserJwt } from './lib/jwtAuth.js';
 import { AuthService, AuthRequest, getBaseUrl } from './lib/authService.js';
 import { AbapAdtServer } from './AbapAdtServer.js';
 
-// Initialize Passport strategy for BTP XSUAA (used by legacy SSE endpoints)
-initJwtStrategy();
-
-// Initialize OAuth Proxy Service (used by Streamable HTTP endpoints)
+// Initialize OAuth Proxy Service
 const authService = new AuthService();
 
 const app = express();
@@ -33,9 +28,14 @@ app.use(cors({
 // JSON body parser for POST endpoints
 app.use(express.json());
 
-// Import passport only for legacy SSE endpoints
-import passport from 'passport';
-app.use(passport.initialize());
+// Helper to extract JWT from Authorization header
+function getUserJwt(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7);
+  }
+  return null;
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // OAuth Proxy State Management (in-memory, per-instance)
@@ -69,11 +69,6 @@ setInterval(() => {
 }, 60 * 60 * 1000); // Check every hour
 
 // ═══════════════════════════════════════════════════════════════════
-// Legacy SSE Session Storage
-// ═══════════════════════════════════════════════════════════════════
-const sseTransports = new Map<string, SSEServerTransport>();
-
-// ═══════════════════════════════════════════════════════════════════
 // Health Check
 // ═══════════════════════════════════════════════════════════════════
 app.get('/health', (req, res) => {
@@ -81,8 +76,7 @@ app.get('/health', (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     activeHttpSessions: httpSessions.size,
-    activeSseSessions: sseTransports.size,
-    version: '0.3.0'
+    version: '1.0.0-streamable'
   });
 });
 
@@ -149,7 +143,7 @@ app.post('/mcp', authService.authenticateJWT() as express.RequestHandler, async 
   }
 });
 
-/** GET /mcp — Server-to-client SSE notifications (part of Streamable HTTP protocol) */
+/** GET /mcp — Server-to-client notifications */
 app.get('/mcp', authService.authenticateJWT() as express.RequestHandler, async (req: Request, res: Response) => {
   const sessionId = req.headers['mcp-session-id'] as string | undefined;
 
@@ -157,10 +151,10 @@ app.get('/mcp', authService.authenticateJWT() as express.RequestHandler, async (
   if (!sessionId || !httpSessions.has(sessionId)) {
     const baseUrl = getBaseUrl(req);
     return res.json({
-      name: 'mcp-abap-abap-adt-api',
-      version: '0.3.0',
+      name: 'abap-mcp-server',
+      version: '1.0.0-streamable',
       transport: 'streamable-http',
-      endpoints: { mcp: '/mcp', sse: '/mcp/sse', health: '/health' },
+      endpoints: { mcp: '/mcp', health: '/health' },
       authentication: authService.isConfigured() ? {
         type: 'OAuth 2.0 / XSUAA',
         authorize: `${baseUrl}/oauth/authorize`,
@@ -188,48 +182,7 @@ app.delete('/mcp', async (req: Request, res: Response) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// 2. LEGACY SSE ENDPOINTS (Backward-compatible — /mcp/sse)
-// ═══════════════════════════════════════════════════════════════════
-
-app.get('/mcp/sse', jwtAuthMiddleware, async (req: Request, res: Response) => {
-  try {
-    const userJwt = getUserJwt(req) || undefined;
-    const destName = req.headers['x-sap-destination-name'] as string | undefined;
-    res.setHeader('X-Accel-Buffering', 'no');
-    const transport = new SSEServerTransport("/mcp/messages", res);
-    const server = await createMcpServer(userJwt, destName);
-    await server.connect(transport);
-    sseTransports.set(transport.sessionId, transport);
-    const pingInterval = setInterval(() => { res.write(': ping\n\n'); }, 15000);
-    transport.onclose = async () => {
-      clearInterval(pingInterval);
-      sseTransports.delete(transport.sessionId);
-      await server.closeSession();
-      console.log(`[SSE] Session ${transport.sessionId} closed and ABAP session destroyed.`);
-    };
-  } catch (error: any) {
-    console.error("[SSE ERROR]", error);
-    if (!res.headersSent) res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/mcp/messages', jwtAuthMiddleware, async (req: Request, res: Response) => {
-  const sessionId = req.query.sessionId as string;
-  if (!sessionId) return res.status(400).send("Missing sessionId parameter");
-  const transport = sseTransports.get(sessionId);
-  if (transport) {
-    try { await transport.handlePostMessage(req, res); }
-    catch (error: any) { res.status(500).send(error.message); }
-  } else {
-    res.status(404).send("Session not found");
-  }
-});
-
-// ═══════════════════════════════════════════════════════════════════
-// 3. OAUTH PROXY ENDPOINTS
-//    These endpoints allow MCP Clients (OpenMCP, Claude Desktop, etc.)
-//    to authenticate via XSUAA directly from the server, without
-//    needing an AppRouter or manual token copy-paste.
+// 2. OAUTH PROXY ENDPOINTS
 // ═══════════════════════════════════════════════════════════════════
 
 /** RFC 8414 — OAuth Authorization Server Metadata Discovery */
@@ -251,7 +204,7 @@ app.get(['/.well-known/oauth-authorization-server', '/.well-known/oauth-authoriz
   });
 });
 
-/** OAuth Client Registration (RFC 7591) — Returns XSUAA client_id/secret */
+/** OAuth Client Registration (RFC 7591) */
 app.post('/oauth/register', (req, res) => {
   if (!authService.isConfigured()) {
     return res.status(501).json({ error: 'OAuth not configured' });
@@ -300,7 +253,7 @@ app.get('/oauth/authorize', (req, res) => {
     });
   }
 
-  // Store the MCP Client's redirect URI so we can forward the code back to it
+  // Store the MCP Client's redirect URI
   oauthStates.set(state, { mcpRedirectUri, state, timestamp: Date.now() });
 
   // Cleanup states older than 10 minutes
@@ -391,7 +344,7 @@ app.get('/oauth/token', tokenHandler);
 app.post('/oauth/token', tokenHandler);
 
 // ═══════════════════════════════════════════════════════════════════
-// 4. LEGACY TOKEN DEBUG ENDPOINT
+// 3. LEGACY TOKEN DEBUG ENDPOINT
 // ═══════════════════════════════════════════════════════════════════
 app.get('/api/token', (req: Request, res: Response) => {
   const token = getUserJwt(req);
@@ -406,9 +359,8 @@ app.get('/api/token', (req: Request, res: Response) => {
 // ═══════════════════════════════════════════════════════════════════
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-  console.log(`MCP ABAP ADT API Express Server running on port ${PORT}`);
+  console.log(`ABAP MCP API Express Server (Streamable HTTP) running on port ${PORT}`);
   console.log(`  Streamable HTTP: POST/GET/DELETE /mcp`);
-  console.log(`  Legacy SSE:      GET /mcp/sse`);
   console.log(`  OAuth Authorize:  GET /oauth/authorize`);
   console.log(`  OAuth Discovery:  GET /.well-known/oauth-authorization-server`);
   console.log(`  Health Check:     GET /health`);

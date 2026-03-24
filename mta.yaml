@@ -1,10 +1,10 @@
 _schema-version: "3.1"
-ID: mcp-abap-server
+ID: abap-mcp-server
 version: 1.0.0
-description: "Model Context Protocol Server for ABAP ADT API"
+description: "Model Context Protocol Server for ABAP ADT API (Streamable HTTP)"
 
 modules:
-  - name: mcp-abap-server
+  - name: abap-mcp-server
     type: nodejs
     path: .
     parameters:
@@ -16,56 +16,28 @@ modules:
         properties:
           srv-url: ${default-url}
     requires:
-      - name: mcp-xsuaa
-      - name: mcp-destination
-      - name: mcp-connectivity
+      - name: abap-mcp-xsuaa
+      - name: abap-mcp-destination
+      - name: abap-mcp-connectivity
     properties:
       # Default destination if none provided in header
       SAP_DESTINATION_NAME: T4X_011
 
-  - name: mcp-approuter
-    type: approuter.nodejs
-    path: app/router
-    parameters:
-      disk-quota: 256M
-      memory: 256M
-    requires:
-      - name: mcp-xsuaa
-      - name: srv-api
-        group: destinations
-        properties:
-          name: srv-api
-          url: ~{srv-url}
-          forwardAuthToken: true
-    provides:
-      - name: app-api
-        properties:
-          app-protocol: ${protocol}
-          app-uri: ${default-uri}
-
 resources:
-  - name: mcp-xsuaa
+  - name: abap-mcp-xsuaa
     type: org.cloudfoundry.managed-service
     parameters:
       service: xsuaa
       service-plan: application
       path: ./xs-security.json
-      config:
-        xsappname: mcp-abap-server-${org}-${space}
-        tenant-mode: dedicated
-        oauth2-configuration:
-          redirect-uris:
-            - https://*~{app-api/app-uri}/**
-    requires:
-      - name: app-api
 
-  - name: mcp-destination
+  - name: abap-mcp-destination
     type: org.cloudfoundry.managed-service
     parameters:
       service: destination
       service-plan: lite
 
-  - name: mcp-connectivity
+  - name: abap-mcp-connectivity
     type: org.cloudfoundry.managed-service
     parameters:
       service: connectivity

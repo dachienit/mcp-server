@@ -237,6 +237,7 @@ export class AbapAdtServer extends Server {
                 break;
             case 'objectStructure':
             case 'searchObject':
+            case 'searchPackage':
             case 'findObjectPath':
             case 'objectTypes':
             case 'reentranceTicket':

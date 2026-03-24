@@ -226,8 +226,8 @@ export class ObjectHandlers extends BaseHandler {
             console.log(`[ObjectHandlers] Found exact package ${pkgName} at URI: ${pkgUri}`);
 
             // 2. Search for all objects IN this package using the URI and raw HTTP request
-            // Need to cast to any to access the underlying HTTP client request method
-            const response = await (this.adtclient as any).client.request(`${pkgUri}/contents?withTargetSpec=true&withInactive=true`, {
+            // Need to cast to any to access the underlying HTTP client request method 'h'
+            const response = await (this.adtclient as any).h.request(`${pkgUri}/contents?withTargetSpec=true&withInactive=true`, {
                 headers: { 'Accept': 'application/xml' }
             });
 

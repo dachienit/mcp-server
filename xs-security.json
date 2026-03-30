@@ -9,6 +9,7 @@
     "redirect-uris": [
       "https://*.cfapps.*.hana.ondemand.com/**",
       "https://*.hana.ondemand.com/**",
+      "https://*.applicationstudio.cloud.sap/**",
       "https://claude.ai/api/mcp/auth_callback",
       "http://localhost:*/**",
       "http://localhost:6274/**"
